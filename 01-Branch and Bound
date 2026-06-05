@@ -34,6 +34,24 @@
      * *Poda por Optimidad:* La solución de la relajación resulta ser completamente entera y factible para el problema original. Si su valor supera a la solución incumbente, esta se actualiza inmediatamente.
      * *Poda por Infactibilidad:* Las restricciones matemáticas impuestas en el subproblema imposibilitan la existencia de cualquier solución válida.
 * **Criterio de Parada:** El proceso concluye cuando la lista de nodos activos se vacía por completo. La solución almacenada en la incumbente se ratifica como el óptimo global.
+ Código:
+ def branch_and_bound(problema):
+     nodos_activos = [crear_nodo_raiz(problema)]
+     mejor_solucion = None
+    
+     while nodos_activos:
+         nodo = nodos_activos.pop() # Selección: LIFO (DFS) o Cola de prioridad (Best-First)
+         
+         if cota(nodo) > mejor_solucion: # Poda: si el nodo no promete, se descarta
+             if es_solucion_completa(nodo):
+                 mejor_solucion = nodo
+             else:
+                 nodos_activos.extend(ramificar(nodo)) # Generación de hijos
+     return mejor_solucion
+ 
+ Explicación Código:
+ La estructura de nodos_activos: Define la estrategia de exploración. Si usas una pila (pop()), es un Depth-First Search, ideal para encontrar una solución rápida. Si usas una cola de prioridad, es Best-First Search, que minimiza el número de nodos expandidos al enfocarse en los más prometedores.
+ cota(nodo): Es el filtro inteligente. Si la cota (relajación matemática) es peor que tu mejor solución encontrada (mejor_solucion), el algoritmo "podará" el árbol, ahorrándote explorar miles de combinaciones inútiles.}
 
 ## 4. Análisis del Comportamiento (Trade-offs)
 * **Estrategia de Exploración vs. Explotación:** A diferencia de los métodos heurísticos, este algoritmo no incorpora mecanismos probabilísticos ni aleatorios. La exploración se ejecuta mediante la división exhaustiva del espacio indexado, mientras que la explotación se rige de forma determinista por la severidad matemática de las cotas de poda.
