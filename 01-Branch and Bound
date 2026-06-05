@@ -1,0 +1,59 @@
+# 01 — Branch and Bound (and X)
+
+## 1. Marco Teórico e Inspiración
+* **Definición Formal:** Método de optimización **exacto** y determinista (no constituye una metaheurística). Sigue un enfoque de "divide y vencerás" diseñado para resolver problemas de optimización combinatoria y entera de alta complejidad mediante la exploración sistemática de un árbol de búsqueda jerárquico.
+* **Fundamento Lógico:** El algoritmo recurre a la **enumeración implícita**. En lugar de evaluar de forma exhaustiva cada una de las soluciones del espacio de búsqueda (lo cual causaría un colapso por explosión combinatoria), subdivide el problema original en subproblemas ortogonales (ramas) y calcula límites matemáticos optimistas (cotas) para descartar subárboles completos (poda) sin necesidad de explorarlos.
+* **El Rol en el Repositorio:** Actúa como la **línea base (baseline) absoluta**. Al proveer soluciones con garantía matemática de optimidad global, permite medir con total exactitud el error o desfase (*optimality gap*) de las metaheurísticas aproximadas (Tabu, ACO, GA, SA) ejecutadas sobre las mismas instancias de prueba.
+
+## 2. Componentes Matemáticos y Parámetros del Modelo
+* **Espacio de Búsqueda y Representación:**
+  * *Problema de la Mochila 0/1 (0/1 Knapsack):* Representación binaria compacta mediante un vector $x \in \{0, 1\}^n$, donde cada componente $x_i = 1$ si el objeto $i$ es seleccionado, y $x_i = 0$ en caso contrario.
+  * *Problema del Vendedor Viajero (TSP):* Representación sobre un grafo completo $G=(V, E)$. Una solución válida corresponde a una permutación de los vértices que conforma un único ciclo hamiltoniano de costo mínimo.
+* **Elementos del Árbol de Búsqueda:**
+  * *Nodo:* Representa un subproblema acotado donde un subconjunto de variables ya posee decisiones fijas (ej. objetos incluidos/excluidos o aristas obligatorias/prohibidas) y el resto permanece libre.
+  * *Incumbente (Cota Global):* Almacena el valor de la mejor solución factible encontrada hasta el momento. En maximización actúa como cota inferior global y en minimización como cota superior global ($UB$ o $LB$).
+  * *Relajación:* Una simplificación matemática del subproblema del nodo (generalmente eliminando las restricciones de integridad y permitiendo variables continuas) que se resuelve en tiempo polinomial para obtener una cota optimista.
+* **Ecuaciones y Funciones Clave:**
+  * *Relajación Lineal Continua (Mochila):* Permite valores fraccionarios $x_i \in [0, 1]$. Se resuelve de forma codiciosa ordenando los ítems libres por su densidad de valor/peso ($v_i / w_i$). Para un nodo con capacidad remanente $W'$, la cota superior del nodo se formula como:
+    $$\text{Cota}(N) = \sum_{i \in \text{Fijados}} v_i x_i + \sum_{j \in \text{Tomados}} v_j + v_k \cdot \left(\frac{W' - \sum w_j}{w_k}\right)$$
+    Donde $k$ representa el primer objeto que no cabe de forma íntegra en la mochila.
+  * *Cota Inferior por Aristas Mínimas (TSP):* Para cada ciudad involucrada, se seleccionan los costos de las dos aristas incidentes de menor valor. La cota inferior base para la instancia se define como:
+    $$LB = \frac{1}{2} \sum_{v \in V} (\text{costo arista}_{v,1} + \text{costo arista}_{v,2})$$
+    Si el nodo actual impone aristas fijas obligatorias, estas sustituyen de forma forzada a las aristas de menor costo en la sumatoria.
+
+## 3. Arquitectura del Algoritmo y Ciclo de Vida (Flujo)
+* **Inicialización:** Se define el valor de la mejor solución global actual ($\text{Incumbente} = -\infty$ para maximización o $+\infty$ para minimización). El nodo raíz, conteniendo el problema original con todas sus variables libres, se introduce en la lista de nodos activos.
+* **Estrategias de Selección de Nodos:**
+  * *Búsqueda en Profundidad (Depth-First Search - DFS):* Utiliza una estructura de pila (LIFO). Prioriza descender hasta las hojas del árbol. Es altamente eficiente en consumo de memoria y encuentra soluciones factibles rápidamente, lo que permite actualizar la cota global temprano.
+  * *Búsqueda del Mejor Primero (Best-First Search):* Utiliza una cola de prioridad indexada por el valor de la cota del nodo. Procesa siempre el nodo con la cota más prometedora. Minimiza el número absoluto de nodos expandidos, a costa de un consumo de memoria exponencial.
+* **Ciclo Principal (Estructura Operacional):**
+  1. **Ramificación (Branching):** Se escoge una variable no determinada (ej. una variable binaria con valor fraccionario en la relajación de la mochila, o una arista en el TSP) y se generan subnodos hijos asignándoles valores discretos excluyentes (ej. $x_i = 0$ y $x_i = 1$).
+  2. **Acotamiento (Bounding):** Se computa el valor de la relajación para cada nuevo nodo hijo de forma independiente.
+  3. **Poda (Pruning):** Un nodo se descarta de forma definitiva del árbol activo bajo tres escenarios específicos:
+     * *Poda por Cota (Bound):* La cota del nodo es igual o peor que el valor de la solución incumbente global. No hay posibilidad de hallar nada mejor en ese subárbol.
+     * *Poda por Optimidad:* La solución de la relajación resulta ser completamente entera y factible para el problema original. Si su valor supera a la solución incumbente, esta se actualiza inmediatamente.
+     * *Poda por Infactibilidad:* Las restricciones matemáticas impuestas en el subproblema imposibilitan la existencia de cualquier solución válida.
+* **Criterio de Parada:** El proceso concluye cuando la lista de nodos activos se vacía por completo. La solución almacenada en la incumbente se ratifica como el óptimo global.
+
+## 4. Análisis del Comportamiento (Trade-offs)
+* **Estrategia de Exploración vs. Explotación:** A diferencia de los métodos heurísticos, este algoritmo no incorpora mecanismos probabilísticos ni aleatorios. La exploración se ejecuta mediante la división exhaustiva del espacio indexado, mientras que la explotación se rige de forma determinista por la severidad matemática de las cotas de poda.
+* **Fortalezas:**
+  * Certificación matemática de optimidad absoluta.
+  * Capacidad de demostrar formalmente la infactibilidad de un modelo.
+  * Alto rendimiento operativo cuando las cotas matemáticas son ajustadas (*tight bounds*), reduciendo drásticamente el espacio recorrido.
+* **Debilidades:**
+  * **Explosión Combinatoria:** En el peor escenario teórico (cotas débiles o alta simetría), la complejidad temporal escala exponencialmente ($O(2^n)$ para variables binarias y $O(n!)$ para permutaciones).
+  * Inviabilidad ante el crecimiento de las dimensiones de la instancia ($n > 25$ en problemas combinatorios puros de alta complejidad), donde la saturación de memoria y el tiempo de CPU impiden la conclusión del algoritmo.
+
+## 5. Extensiones Avanzadas y Variantes (La Familia "Branch and X")
+La integración de técnicas avanzadas de programación matemática transforma el árbol básico en algoritmos robustos de nivel industrial:
+* **Branch and Bound:** La formulación clásica basada estrictamente en la ramificación jerárquica y el cálculo de cotas continuas.
+* **Branch and Cut:** Incorpora la generación dinámica de **planos de corte** en los nodos del árbol. Estos cortes corresponden a desigualdades lineales válidas que reducen las regiones fraccionarias del poliedro lineal sin excluir soluciones enteras factibles.
+  * *Cortes de Eliminación de Subtours (SEC):* Esenciales para el TSP. Cuando la relajación genera circuitos cerrados inconexos (subtours), se detecta el subconjunto de ciudades $S$ afectado y se inyecta la restricción:
+    $$\sum_{i \in S, j \notin S} x_{ij} \geq 2$$
+    Esto obliga al solver a interconectar las subrutas aisladas.
+* **Branch and Price:** Diseñado para modelos con un número masivo de variables. Utiliza la técnica de **generación de columnas** en cada nodo, resolviendo un subproblema matemático para añadir únicamente las variables que presenten un costo reducido prometedor para la función objetivo.
+
+## 6. Variaciones e Implementaciones Algorítmicas del Notebook
+* **Cota Inferior Basada en 1-Tree (MST + 1):** Técnica avanzada aplicada al TSP que sustituye el cálculo simple de aristas mínimas. Consiste en aislar un nodo particular, determinar el Árbol de Expansión Mínima (MST) de los nodos restantes mediante algoritmos polinomiales y, posteriormente, enlazar el nodo aislado mediante sus dos aristas de menor costo. Aumenta la robustez de la cota inferior disminuyendo radicalmente los nodos explorados en el árbol.
+* **Solvers LP Dinámicos:** Implementación de esquemas iterativos apoyados en librerías de optimización (como `scipy.optimize.linprog`) encargados de resolver la relajación continua inicial, identificar violaciones estructurales directas, incorporar los cortes matemáticos respectivos y volver a optimizar el nodo antes de forzar la ramificación binaria.
